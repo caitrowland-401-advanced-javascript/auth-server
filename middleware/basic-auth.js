@@ -1,32 +1,31 @@
 const base64 = require('base-64')
-const users = require('../models/users')
+const Users = require('../models/users')
 
-function basicAuth (req, res, next) {
-  // When you do basic auth, an HTTP header gets set in your request
-  // req.headers.authorization will look like "Basic hjoweubnvowsnv"
-
-  // If we don't have an authorization header:
-  if (!req.headers.authorization) {
-    next('Invalid Login')
+function basicAuth (request, response, next) {
+// check if we have an authorizaiton header 
+  if (!request.headers.authorization) {
+    next(new Error('Invalid Login'))
     return
   }
 
-  // Pull out the encoded part (the gibberish) by splitting the header
-  // into an array and popping off the second element
-  const basic = req.headers.authorization.split(' ').pop()
-  // "basic" will decode to "username:password"
+  //retrieve header, get username and password out of base64 and split so you get the info formated as {username: password}
+  const basic = request.headers.authorization.split(' ').pop();
   const decoded = base64.decode(basic)
-  // get username and password by splitting on the ":" character
   const [username, password] = decoded.split(':')
 
   // now that we know the username and password, ask if the user is ok
-  users.authenticateBasic(username, password)
-    .then(() => {
-      next()
-    })
-    .catch(err => {
-      next(err.message)
-    })
+  return Users.authenticateBasic(username, password)
+    .then(_validate)
+
+    function _validate(user) {
+      if(user) {
+        request.user = user
+        request.token = user.generateToken()
+        next()
+      } else {
+        next(new Error ('invalid'))
+    }
+  }
 }
 
 module.exports = basicAuth
